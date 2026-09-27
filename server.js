@@ -19,8 +19,12 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const { DarwinSwarmEngine } = require('./engine/ai_swarm_engine.js');
-const { FirebaseCloudSync, DEFAULT_RTDB_URL } = require('./engine/firebase_cloud_sync.js');
+const { DarwinSwarmEngine } = fs.existsSync(path.join(__dirname, 'ai_swarm_engine.js'))
+  ? require('./ai_swarm_engine.js')
+  : require('./engine/ai_swarm_engine.js');
+const { FirebaseCloudSync, DEFAULT_RTDB_URL } = fs.existsSync(path.join(__dirname, 'firebase_cloud_sync.js'))
+  ? require('./firebase_cloud_sync.js')
+  : require('./engine/firebase_cloud_sync.js');
 
 const PORT = process.env.PORT || 8080;
 const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || DEFAULT_RTDB_URL;
