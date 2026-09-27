@@ -360,17 +360,17 @@ class DarwinSwarmEngine {
 
     this.syncLiveBinancePrices();
     this.binanceSyncInterval = setInterval(() => {
-      if (this.state.isRunning) this.syncLiveBinancePrices();
-    }, 5000);
+      this.syncLiveBinancePrices();
+    }, 4000);
 
-    this.tickInterval = setInterval(() => {
-      if (this.state.isRunning) {
-        this.stepSimulation();
-      }
-    }, 1000);
+    // ZERO SIMULAÇÃO: Nunca roda tickInterval fictício
+    this.tickInterval = null;
   }
 
   stepSimulation() {
+    // DESATIVADO: Apenas dados reais da Binance
+    return;
+  }
     this.assets.forEach(asset => {
       const microDrift = (Math.random() - 0.493) * asset.volatility * asset.price * 0.28;
       asset.price = Math.max(0.01, Number((asset.price + microDrift).toFixed(4)));

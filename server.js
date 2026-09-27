@@ -25,17 +25,19 @@ const { DarwinSwarmEngine } = fs.existsSync(path.join(__dirname, 'ai_swarm_engin
 const { FirebaseCloudSync, DEFAULT_RTDB_URL } = fs.existsSync(path.join(__dirname, 'firebase_cloud_sync.js'))
   ? require('./firebase_cloud_sync.js')
   : require('./engine/firebase_cloud_sync.js');
+const { FNHBlockchainProtocol } = require('./crypto_asset_chain.js');
 
 const PORT = process.env.PORT || 8080;
 const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || DEFAULT_RTDB_URL;
 
 // =============================================================================
-// 1. INICIALIZAÇÃO DO MOTOR 24/7 NA NUVEM (RAILWAY WORKER)
+// 1. INICIALIZAÇÃO DO MOTOR 24/7 NA NUVEM (RAILWAY WORKER) + BLOCKCHAIN FNH
 // =============================================================================
 const cloudSync = new FirebaseCloudSync();
 cloudSync.databaseURL = FIREBASE_RTDB_URL;
 
 const serverEngine = new DarwinSwarmEngine();
+const fnhChain = new FNHBlockchainProtocol();
 
 // Carrega chaves de API das variáveis de ambiente do Railway (se definidas)
 if (process.env.BINANCE_API_KEY) {
@@ -70,12 +72,8 @@ if (process.env.ALPACA_API_KEY) {
     console.log('[NEXUS RAILWAY 24/7] Estado inicial criado no Firebase.');
   }
 
-  // Sincroniza o motor 24/7 do Railway com o Firebase a cada 4 segundos
-  setInterval(async () => {
-    if (serverEngine.state.isRunning) {
-      await cloudSync.syncEcosystemState(serverEngine.state);
-    }
-  }, 4000);
+  // NOTA: O Operador Real do seu PC (real_binance_operator.js) é o único que escreve no Firebase.
+  // O server.js apenas serve o painel HTTP.
 })();
 
 // =============================================================================
@@ -226,6 +224,57 @@ const server = http.createServer(async (req, res) => {
       }
     });
     return;
+  }
+
+  // ===========================================================================
+  // ROTAS OFICIAIS DA BLOCKCHAIN PRÓPRIA FNH (30% ABERTO / 70% COFRE 4 ANOS)
+  // ===========================================================================
+  if (req.method === 'GET' && req.url.startsWith('/api/token/state')) {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify(fnhChain.getPublicState()));
+  }
+
+  if (req.method === 'POST' && req.url === '/api/token/collect-open') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        const params = body ? JSON.parse(body) : {};
+        const result = fnhChain.collectFromOpenPool(params);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ...result, state: fnhChain.getPublicState() }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/token/mine-vault') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      try {
+        const params = body ? JSON.parse(body) : {};
+        const result = fnhChain.mineLockedVault(params);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ...result, state: fnhChain.getPublicState() }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/token/contract') {
+    const contractPath = path.join(__dirname, 'contracts', 'FNHCryptoAsset.sol');
+    const source = fs.existsSync(contractPath)
+      ? fs.readFileSync(contractPath, 'utf8')
+      : '// Contrato nao encontrado';
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify({ symbol: 'FNH', decimals: 10, soliditySource: source }));
   }
 
   // Serve arquivos estáticos do Painel Web
