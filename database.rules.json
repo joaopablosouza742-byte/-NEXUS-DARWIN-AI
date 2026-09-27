@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "nexus_darwin_ecosystem": {
+      ".read": true,
+      ".write": true,
+      ".validate": "newData.hasChildren(['dayNumber', 'initialSeedCapital', 'masterVaultBalance']) && newData.child('initialSeedCapital').isNumber() && newData.child('initialSeedCapital').val() >= 10 && newData.child('masterVaultBalance').isNumber() && newData.child('masterVaultBalance').val() >= 0"
+    },
+    "vault_transfers": {
+      ".read": true,
+      "$transferId": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['day', 'botId', 'amount', 'targetVault']) && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

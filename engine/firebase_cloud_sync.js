@@ -1,22 +1,25 @@
 /**
- * NEXUS DARWIN AI - Sincronizador Cloud Firestore (Firebase Modular SDK v10)
- * --------------------------------------------------------------------------
- * Substitui o armazenamento local pelo banco de dados em nuvem Cloud Firestore.
- * Nota de Arquitetura: Utilizamos `onSnapshot` (real-time listener) especificamente
- * porque o painel de trading exige atualização ao vivo segundo a segundo entre o
- * motor 24/7 na nuvem e qualquer dispositivo (celular/PC) conectado.
+ * NEXUS DARWIN AI - Sincronizador Automático Firebase Realtime Database
+ * ---------------------------------------------------------------------
+ * Conectado diretamente ao banco do projeto NEXUS-DARWIN-AI:
+ * URL: https://nexus-darwin-ai-default-rtdb.firebaseio.com
+ *
+ * Sincroniza em tempo real:
+ * - /nexus_darwin_ecosystem (Carteira Cofre Binance & Alpaca, Robôs Vivos de R$ 10,
+ *   Cemitério de Robôs Mortos, Cérebro Coletivo IA e Extrato Diário)
+ * - /vault_transfers (Histórico imutável de cada +R$ 10,00 salvo no Cofre)
  */
+
+const DEFAULT_RTDB_URL = 'https://nexus-darwin-ai-default-rtdb.firebaseio.com';
 
 class FirebaseCloudSync {
   constructor() {
+    this.databaseURL = DEFAULT_RTDB_URL;
     this.isConnected = false;
-    this.app = null;
-    this.db = null;
-    this.auth = null;
-    this.uid = null;
-    this.unsubscribeSnapshot = null;
+    this.lastSyncTime = null;
     this.statusCallback = () => {};
     this.remoteStateCallback = () => {};
+    this.isSyncing = false;
   }
 
   onStatusChange(cb) {
@@ -28,113 +31,118 @@ class FirebaseCloudSync {
   }
 
   /**
-   * Inicializa o Firebase dinamicamente usando o firebaseConfig fornecido pelo usuário
-   * no painel ou nas variáveis de configuração do projeto.
+   * Conecta automaticamente ao Realtime Database do usuário e carrega o estado salvo na nuvem
    */
-  async initFirebase(firebaseConfig) {
-    if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
-      this.isConnected = false;
-      this.statusCallback({
-        connected: false,
-        message: 'Aguardando credenciais do projeto Firebase (Clique em "🔥 Conectar Firebase & APIs")'
-      });
-      return false;
+  async connectAndLoadInitialState(customUrl) {
+    if (customUrl && customUrl.startsWith('https://')) {
+      this.databaseURL = customUrl.replace(/\/$/, '');
     }
 
     try {
-      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js');
-      const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js');
-      const { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js');
-
-      this.sdk = { doc, setDoc, onSnapshot, collection, addDoc, serverTimestamp };
-      this.app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      this.auth = getAuth(this.app);
-      this.db = getFirestore(this.app);
-
-      // Autentica anonimamente para respeitar as regras de segurança (request.auth.uid == userId)
-      const cred = await signInAnonymously(this.auth);
-      this.uid = cred.user.uid;
+      const response = await fetch(`${this.databaseURL}/nexus_darwin_ecosystem.json`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const remoteData = await response.json();
       this.isConnected = true;
+      this.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
 
       this.statusCallback({
         connected: true,
-        projectId: firebaseConfig.projectId,
-        uid: this.uid,
-        message: `Conectado ao Firebase Firestore (${firebaseConfig.projectId})`
+        projectId: 'nexus-darwin-ai-default-rtdb',
+        databaseURL: this.databaseURL,
+        message: `☁️ Firebase Conectado (${this.lastSyncTime})`
       });
 
-      this.startRealtimeListener();
-      return true;
+      if (remoteData && typeof remoteData === 'object' && remoteData.dayNumber) {
+        this.remoteStateCallback(remoteData);
+        return remoteData;
+      }
+      return null;
     } catch (err) {
-      console.error('Erro ao conectar no Firebase Firestore:', err);
+      console.warn('Aviso ao conectar no Realtime Database:', err.message);
       this.isConnected = false;
       this.statusCallback({
         connected: false,
-        message: `Erro Firebase: ${err.message || 'Verifique seu firebaseConfig e ative Auth Anônimo + Firestore'}`
+        message: `Erro Firebase RTDB: Verifique as Regras no Console`
       });
-      return false;
+      return null;
     }
   }
 
-  startRealtimeListener() {
-    if (!this.isConnected || !this.db || !this.uid) return;
-    const { doc, onSnapshot } = this.sdk;
-    const ecoRef = doc(this.db, 'ecosystems', this.uid);
-
-    if (this.unsubscribeSnapshot) this.unsubscribeSnapshot();
-
-    this.unsubscribeSnapshot = onSnapshot(ecoRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        this.remoteStateCallback(data);
-      }
-    });
-  }
-
   /**
-   * Salva o estado completo do enxame de robôs e das carteiras cofre (Binance + Alpaca) no Firestore
+   * Salva o estado completo na nuvem (https://nexus-darwin-ai-default-rtdb.firebaseio.com/nexus_darwin_ecosystem.json)
    */
   async syncEcosystemState(state) {
-    if (!this.isConnected || !this.db || !this.uid) return;
-    try {
-      const { doc, setDoc, serverTimestamp } = this.sdk;
-      const ecoRef = doc(this.db, 'ecosystems', this.uid);
+    if (this.isSyncing || typeof fetch === 'undefined') return;
+    this.isSyncing = true;
 
-      await setDoc(ecoRef, {
+    try {
+      const payload = {
+        updatedAt: new Date().toISOString(),
+        updatedAtBR: new Date().toLocaleString('pt-BR'),
         dayNumber: state.dayNumber,
+        dayProgressPct: Math.round(state.dayProgressPct || 0),
         initialSeedCapital: state.initialSeedCapital,
         targetProfitPerBot: state.targetProfitPerBot,
         masterVaultBalance: state.masterVaultBalance,
         binanceFundingVault: state.binanceFundingVault,
         alpacaCashVault: state.alpacaCashVault,
+        totalHistoricalProfitSaved: state.totalHistoricalProfitSaved,
         hiveMind: state.hiveMind,
         activeBots: state.activeBots,
-        deadBots: state.deadBots.slice(0, 20),
-        dailyLedger: state.dailyLedger.slice(0, 30),
-        tradeLogs: state.tradeLogs.slice(0, 30),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+        deadBots: (state.deadBots || []).slice(0, 25),
+        dailyLedger: (state.dailyLedger || []).slice(0, 30),
+        tradeLogs: (state.tradeLogs || []).slice(0, 30)
+      };
+
+      const res = await fetch(`${this.databaseURL}/nexus_darwin_ecosystem.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        this.isConnected = true;
+        this.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+        this.statusCallback({
+          connected: true,
+          projectId: 'nexus-darwin-ai-default-rtdb',
+          databaseURL: this.databaseURL,
+          message: `☁️ Firebase Sincronizado (${this.lastSyncTime})`
+        });
+      }
     } catch (err) {
-      console.warn('Falha ao sincronizar documento com Firestore:', err.message);
+      console.warn('Falha ao gravar no Firebase RTDB:', err.message);
+    } finally {
+      this.isSyncing = false;
     }
   }
 
   /**
-   * Registra uma transferência imutável de lucro para a Carteira Cofre (Binance Funding / Alpaca Vault)
+   * Registra cada depósito de +R$ 10,00 na árvore /vault_transfers do Realtime Database
    */
   async recordVaultTransfer(transferData) {
-    if (!this.isConnected || !this.db || !this.uid) return;
+    if (typeof fetch === 'undefined') return;
     try {
-      const { collection, addDoc, serverTimestamp } = this.sdk;
-      const colRef = collection(this.db, 'ecosystems', this.uid, 'vault_transfers');
-      await addDoc(colRef, {
-        ...transferData,
-        createdAt: serverTimestamp()
+      await fetch(`${this.databaseURL}/vault_transfers.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...transferData,
+          timestampISO: new Date().toISOString(),
+          timestampBR: new Date().toLocaleString('pt-BR')
+        })
       });
     } catch (err) {
-      console.warn('Erro ao gravar vault_transfer no Firestore:', err.message);
+      console.warn('Erro ao gravar vault_transfer no Firebase RTDB:', err.message);
     }
   }
 }
 
-window.FirebaseCloudSync = new FirebaseCloudSync();
+if (typeof window !== 'undefined') {
+  window.FirebaseCloudSync = new FirebaseCloudSync();
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { FirebaseCloudSync, DEFAULT_RTDB_URL };
+}

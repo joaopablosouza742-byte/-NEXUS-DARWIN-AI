@@ -1,8 +1,8 @@
 /**
- * Controlador de Interface do NEXUS DARWIN CLOUD (Firebase + Binance + Bolsa EUA)
+ * Controlador de Interface do NEXUS DARWIN CLOUD (Firebase Realtime DB + Binance + Bolsa EUA)
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const formatCurrency = (val) => {
     const num = Number(val) || 0;
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -33,13 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDashboard(state, assets);
   });
 
-  // Escuta status de conexão do Firebase Cloud Firestore
+  // Escuta e conecta automaticamente ao Firebase Realtime Database:
+  // https://nexus-darwin-ai-default-rtdb.firebaseio.com
   if (window.FirebaseCloudSync) {
     window.FirebaseCloudSync.onStatusChange((status) => {
       const fbBadge = document.getElementById('firebaseStatusBadge');
       if (!fbBadge) return;
       if (status.connected) {
-        fbBadge.textContent = `☁️ Firestore Ativo (${status.projectId})`;
+        fbBadge.textContent = status.message || '☁️ Firebase Conectado';
         fbBadge.style.background = 'rgba(16, 185, 129, 0.15)';
         fbBadge.style.color = 'var(--accent-emerald)';
         fbBadge.style.borderColor = 'var(--border-glow-green)';
@@ -47,7 +48,33 @@ document.addEventListener('DOMContentLoaded', () => {
         fbBadge.textContent = `☁️ ${status.message}`;
       }
     });
+
+    const remoteData = await window.FirebaseCloudSync.connectAndLoadInitialState();
+    if (remoteData && remoteData.dayNumber) {
+      engine.state = {
+        ...engine.state,
+        ...remoteData,
+        hiveMind: { ...engine.state.hiveMind, ...(remoteData.hiveMind || {}) },
+        activeBots: Array.isArray(remoteData.activeBots) && remoteData.activeBots.length > 0
+          ? remoteData.activeBots
+          : engine.state.activeBots,
+        deadBots: Array.isArray(remoteData.deadBots) ? remoteData.deadBots : [],
+        dailyLedger: Array.isArray(remoteData.dailyLedger) ? remoteData.dailyLedger : [],
+        tradeLogs: Array.isArray(remoteData.tradeLogs) ? remoteData.tradeLogs : []
+      };
+      renderDashboard(engine.state, engine.assets);
+    } else {
+      // Grava o estado inicial imediatamente no Firebase para aparecer na tela do console do usuário
+      await window.FirebaseCloudSync.syncEcosystemState(engine.state);
+    }
   }
+
+  // Sincroniza no Firebase Realtime Database a cada 3 segundos continuamente
+  setInterval(() => {
+    if (window.FirebaseCloudSync && engine.state.isRunning) {
+      window.FirebaseCloudSync.syncEcosystemState(engine.state);
+    }
+  }, 3000);
 
   renderDashboard(engine.state, engine.assets);
 
@@ -76,7 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnOpenConfig').addEventListener('click', () => {
     document.getElementById('inputSeedCapital').value = engine.state.initialSeedCapital;
     document.getElementById('inputTargetProfit').value = engine.state.targetProfitPerBot;
-    document.getElementById('inputFirebaseConfig').value = engine.state.apiConfig.firebaseConfigJson || '';
+    document.getElementById('inputFirebaseConfig').value =
+      window.FirebaseCloudSync ? window.FirebaseCloudSync.databaseURL : 'https://nexus-darwin-ai-default-rtdb.firebaseio.com';
     document.getElementById('inputBinanceKey').value = engine.state.apiConfig.binanceApiKey || '';
     document.getElementById('inputBinanceSecret').value = engine.state.apiConfig.binanceApiSecret || '';
     document.getElementById('inputAlpacaKey').value = engine.state.apiConfig.alpacaApiKey || '';
@@ -88,12 +116,15 @@ document.addEventListener('DOMContentLoaded', () => {
     configDialog.close();
   });
 
-  document.getElementById('configForm').addEventListener('submit', (e) => {
+  document.getElementById('configForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const customUrl = document.getElementById('inputFirebaseConfig').value.trim();
+    if (customUrl.startsWith('https://') && window.FirebaseCloudSync) {
+      await window.FirebaseCloudSync.connectAndLoadInitialState(customUrl);
+    }
     engine.updateConfiguration({
       initialSeedCapital: Number(document.getElementById('inputSeedCapital').value),
       targetProfitPerBot: Number(document.getElementById('inputTargetProfit').value),
-      firebaseConfigJson: document.getElementById('inputFirebaseConfig').value.trim(),
       binanceApiKey: document.getElementById('inputBinanceKey').value.trim(),
       binanceApiSecret: document.getElementById('inputBinanceSecret').value.trim(),
       alpacaApiKey: document.getElementById('inputAlpacaKey').value.trim(),
@@ -135,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('dayProgressText').textContent = `${pct}%`;
     document.getElementById('dayProgressFill').style.width = `${pct}%`;
 
-    // Ticker Strip (Binance Cripto + Bolsa Americana Wall Street)
     const tickerStrip = document.getElementById('marketTickerStrip');
     tickerStrip.innerHTML = assets.map(asset => {
       const isCripto = asset.market === 'BINANCE_CRIPTO';
@@ -150,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
 
-    // KPIs de Cofres (Binance Funding Wallet + Alpaca US Cash Reserve)
     document.getElementById('kpiVaultBalance').textContent = formatCurrency(state.masterVaultBalance);
     document.getElementById('kpiBinanceVault').textContent = formatCurrency(state.binanceFundingVault);
     document.getElementById('kpiAlpacaVault').textContent = formatCurrency(state.alpacaCashVault);
@@ -178,9 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('kpiWinRate').textContent = `Win Rate: ${winRate}%`;
     document.getElementById('kpiCollectiveIQ').textContent = `QI ${state.hiveMind.collectiveIQ}`;
     document.getElementById('kpiLessonsCount').textContent =
-      `${state.hiveMind.totalLessonsLearned} ajustes neurais • ${state.hiveMind.avoidedPatternsCount} falhas vacinadas`;
+      `${state.hiveMind.totalLessonsLearned} ajustes neurais • Sincronizado no Firebase`;
 
-    // Cards dos Robôs Operando (Regra R$ 10 -> +R$ 10)
     const activeBotsGrid = document.getElementById('activeBotsGrid');
     activeBotsGrid.innerHTML = state.activeBots.map(bot => {
       const isPositive = bot.dailyPnL >= 0;
@@ -231,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
 
-          <!-- Barra de Progresso R$ 10 -> +R$ 10 para Multiplicar o Robô -->
           <div style="margin-bottom: 0.6rem;">
             <div style="display: flex; justify-content: space-between; font-size: 0.69rem; color: var(--text-secondary); margin-bottom: 0.2rem;">
               <span>Progresso p/ Multiplicar (+1 Robô de ${formatCurrency(state.initialSeedCapital)})</span>
@@ -271,7 +298,6 @@ document.addEventListener('DOMContentLoaded', () => {
       renderBotBrainModal(state);
     }
 
-    // Tabela de Extrato dos Cofres (Binance Funding & Bolsa EUA)
     const ledgerBody = document.getElementById('dailyLedgerBody');
     if (state.dailyLedger.length > 0) {
       ledgerBody.innerHTML = state.dailyLedger.map(row => `
@@ -288,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('');
     }
 
-    // Pesos da Colmeia Central
     const gw = state.hiveMind.globalBestWeights;
     const hiveWeightsList = [
       { name: 'EMA Cross 9/21 (Tendência)', val: gw.w_ema },
@@ -323,7 +348,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `).join('');
 
-    // Feed de Trades
     const tradesFeed = document.getElementById('liveTradesFeed');
     if (state.tradeLogs.length === 0) {
       tradesFeed.innerHTML = `<div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 1rem;">Buscando entradas na Binance e NYSE/NASDAQ...</div>`;
@@ -346,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('');
     }
 
-    // Cemitério de Robôs Eliminados
     const deadFeed = document.getElementById('deadBotsFeed');
     if (state.deadBots.length === 0) {
       deadFeed.innerHTML = `<div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 1rem;">Nenhum robô morreu. Todos buscando +R$ 10,00!</div>`;
