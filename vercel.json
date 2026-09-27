@@ -1,9 +1,29 @@
 {
   "version": 2,
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/api/health", "destination": "/api/cron-step" },
-    { "source": "/api/binance/vault-transfer", "destination": "/api/binance-vault" },
-    { "source": "/api/alpaca/order", "destination": "/api/alpaca-order" }
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.css",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    { "src": "/api/health", "dest": "/api/cron-step" },
+    { "src": "/api/binance/vault-transfer", "dest": "/api/binance-vault" },
+    { "src": "/api/alpaca/order", "dest": "/api/alpaca-order" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*\\.(js|css|png|jpg|ico|svg))", "dest": "/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
