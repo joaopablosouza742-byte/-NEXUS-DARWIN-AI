@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/health", "destination": "/api/cron-step" },
+    { "source": "/api/binance/vault-transfer", "destination": "/api/binance-vault" },
+    { "source": "/api/alpaca/order", "destination": "/api/alpaca-order" }
+  ]
+}
