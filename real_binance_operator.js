@@ -203,8 +203,9 @@ const ecosystemState = {
   isRunning: true,
   initialSeedCapital: 10.00,
   targetProfitPerBot: 10.00,
-  takeProfitPctPerTrade: 1.8, // 1.8% a 3% por trade
-  stopLossPctPerTrade: 1.5,   // Stop loss protetor
+  takeProfitMinPct: 1.0,      // Scalping Profissional: 1.0% a 1.5% por operação
+  takeProfitMaxPct: 1.5,
+  stopLossPctPerTrade: 0.9,   // Stop loss curto e protetor (0.9%)
 
   masterVaultBalance: 0.00,
   binanceFundingVault: 0.00,
@@ -285,13 +286,29 @@ async function startRealTraderLoop() {
   const balances = await getRealBalances();
   console.log(`[SALDO INICIAL SPOT]: R$ ${balances.brlFree.toFixed(2)} BRL | BTC: ${balances.btcFree} | SOL: ${balances.solFree}`);
 
-  if (balances.brlFree >= 10.00) {
+  // Se já tiver Bitcoin comprado na conta (como a ordem que executamos):
+  if (balances.btcFree >= 0.00001) {
+    const currentPrice = (await getLivePrice('BTCBRL')) || 440782;
+    const valBrl = balances.btcFree * currentPrice;
+    ecosystemState.activeBots[0].currentCapital = Number((balances.brlFree + valBrl).toFixed(2));
+    ecosystemState.activeBots[0].initialDayCapital = 10.00;
+    ecosystemState.activeBots[0].openPosition = {
+      symbol: 'BTCBRL',
+      side: 'LONG',
+      entryPrice: 440782,
+      qty: balances.btcFree,
+      notionalBrl: 8.82,
+      orderId: 2337522095,
+      openedAt: new Date().toLocaleTimeString('pt-BR')
+    };
+    console.log(`[POSIÇÃO RESTAURADA]: ${balances.btcFree} BTC monitorando lucro de 1% a 1.5%!`);
+  } else if (balances.brlFree >= 10.00) {
     ecosystemState.activeBots[0].currentCapital = balances.brlFree;
     ecosystemState.activeBots[0].initialDayCapital = balances.brlFree;
   }
 
   await cloudSync.syncEcosystemState(ecosystemState);
-  console.log('[FIREBASE] Estado inicial de R$ 10,00 sincronizado no painel web!');
+  console.log('[FIREBASE] Estado inicial real sincronizado no painel web!');
 
   // 2. Loop de monitoramento de mercado (a cada 2 segundos)
   let tickCount = 0;
@@ -386,8 +403,8 @@ async function startRealTraderLoop() {
           console.log(`[POSIÇÃO ABERTA] BTC/BRL | Entrada: R$ ${pos.entryPrice.toFixed(0)} | Atual: R$ ${currentPrice.toFixed(0)} | PnL: ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}% (R$ ${pnlBrl.toFixed(2)})`);
         }
 
-        // ALVO DE LUCRO ATINGIDO (+1.8% a +3% ou mais) OU STOP LOSS (-1.5%)
-        const hitTakeProfit = pnlPct >= ecosystemState.takeProfitPctPerTrade;
+        // ALVO DE LUCRO REALISTA (SCALPING 1.0% a 1.5%) OU STOP LOSS PROTEGIDO (0.9%)
+        const hitTakeProfit = pnlPct >= ecosystemState.takeProfitMinPct;
         const hitStopLoss = pnlPct <= -ecosystemState.stopLossPctPerTrade;
 
         if (hitTakeProfit || hitStopLoss) {
