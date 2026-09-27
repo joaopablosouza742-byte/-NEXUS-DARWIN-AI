@@ -42,27 +42,13 @@
 
     <!-- Ações Rápidas -->
     <div class="controls-group">
-      <select id="speedSelector" class="select-speed" aria-label="Velocidade do Ciclo Diário">
-        <option value="15">⚡ Ultra-Turbo (1 Dia = 15s)</option>
-        <option value="45" selected>🚀 Turbo (1 Dia = 45s)</option>
-        <option value="180">⏱️ Rápido (1 Dia = 3 min)</option>
-        <option value="86400">🕒 Tempo Real (24 Horas)</option>
-      </select>
+      <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(16, 185, 129, 0.12); padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 0.78rem;">
+        <span style="color: #10b981; font-weight: 700;">🟢 PC CONECTADO</span>
+        <span style="color: var(--text-muted);">| IP: 45.226.119.62</span>
+      </div>
 
-      <button class="btn btn-cyan" id="btnForceEndOfDay" title="Simular o fechamento do dia: cada robô positivo guarda +R$ 10 no Cofre e cria +1 robô de R$ 10">
-        ⏭️ Bater Meta +R$ 10 & Multiplicar Agora
-      </button>
-
-      <button class="btn btn-purple" id="btnInjectBot" title="Injetar +1 robô com R$ 10,00">
-        ➕ +1 Robô (R$ 10)
-      </button>
-
-      <button class="btn" id="btnToggleEngine">
-        ⏸️ Pausar
-      </button>
-
-      <button class="btn btn-primary" id="btnOpenConfig">
-        🔥 Conectar Firebase & Corretoras
+      <button class="btn btn-primary" id="btnRefreshRealState" onclick="location.reload()" title="Atualizar dados em tempo real">
+        🔄 Atualizar Dados Agora
       </button>
     </div>
   </header>
