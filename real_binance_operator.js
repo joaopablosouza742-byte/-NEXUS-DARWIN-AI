@@ -348,12 +348,13 @@ async function startMultiAssetTrader() {
             }
           }
 
-          // Se achou uma oportunidade de ouro e o robô tem capital livre:
-          if (bestCandidate && bot.currentCapital >= 10.00) {
+          // Se achou uma oportunidade de ouro e o robô tem capital livre (mínimo R$ 8,50 em caixa):
+          if (bestCandidate && bot.currentCapital >= 8.50) {
             const { asset, rsi, price } = bestCandidate;
-            console.log(`🎯 [OPORTUNIDADE DETECTADA EM ${asset.name}!] RSI: ${rsi.toFixed(1)} | Preço: R$ ${price}`);
+            const buyAmount = Number(Math.min(bot.currentCapital, 10.00).toFixed(2));
+            console.log(`🎯 [OPORTUNIDADE DETECTADA EM ${asset.name}!] RSI: ${rsi.toFixed(1)} | Preço: R$ ${price} | Valor da Ordem: R$ ${buyAmount}`);
 
-            const order = await executeRealMarketOrder(asset.symbol, 'BUY', 10.00, null, asset.decimals);
+            const order = await executeRealMarketOrder(asset.symbol, 'BUY', buyAmount, null, asset.decimals);
 
             if (order && (order.orderId || order.status === 'FILLED')) {
               const executedQty = parseFloat(order.executedQty) || (10.00 / price);
