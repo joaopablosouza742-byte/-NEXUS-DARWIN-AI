@@ -1,13 +1,16 @@
 /**
- * NEXUS DARWIN CLOUD - Servidor Backend 24/7 (Node.js)
- * ----------------------------------------------------
- * Responsável por:
- * 1. Conectar com a API oficial da BINANCE (Spot/Margin + Transferência Automática
- *    do lucro de R$ 10,00 da carteira Spot para a Carteira Cofre "Funding Wallet"
- *    via POST /sapi/v1/asset/transfer tipo MAIN_FUNDING).
- * 2. Conectar com a API oficial da ALPACA MARKETS (Bolsa Americana NYSE/NASDAQ:
- *    NVDA, AAPL, TSLA, SPY, QQQ com suporte a Fractional Shares a partir de US$ 1).
- * 3. Servir o Painel Web na nuvem (Render, Railway, Cloud Run ou VPS 24/7).
+ * NEXUS DARWIN CLOUD - Servidor 24/7 para RAILWAY (Node.js)
+ * ---------------------------------------------------------
+ * Quando hospedado no Railway:
+ * 1. Roda o Motor Autônomo (DarwinSwarmEngine) 24 horas por dia no servidor da nuvem,
+ *    mesmo com seu PC e celular desligados!
+ * 2. Sincroniza continuamente (a cada 3 segundos) todo o estado, Cérebro IA,
+ *    Cofre Binance Funding e Cofre Bolsa EUA com o seu Firebase Realtime Database:
+ *    https://nexus-darwin-ai-default-rtdb.firebaseio.com
+ * 3. Executa transferências reais para a Carteira Funding da Binance (MAIN_FUNDING)
+ *    e ordens de Ações Fracionadas na Bolsa Americana (Alpaca) quando as chaves de API
+ *    estão configuradas nas variáveis do Railway ou no painel.
+ * 4. Serve o Painel Web em tempo real no domínio público gerado pelo Railway.
  */
 
 const http = require('http');
@@ -16,19 +19,68 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 8080;
+const { DarwinSwarmEngine } = require('./engine/ai_swarm_engine.js');
+const { FirebaseCloudSync, DEFAULT_RTDB_URL } = require('./engine/firebase_cloud_sync.js');
 
-/**
- * Assina parâmetros com HMAC-SHA256 exigido pela API da Binance
- */
+const PORT = process.env.PORT || 8080;
+const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || DEFAULT_RTDB_URL;
+
+// =============================================================================
+// 1. INICIALIZAÇÃO DO MOTOR 24/7 NA NUVEM (RAILWAY WORKER)
+// =============================================================================
+const cloudSync = new FirebaseCloudSync();
+cloudSync.databaseURL = FIREBASE_RTDB_URL;
+
+const serverEngine = new DarwinSwarmEngine();
+
+// Carrega chaves de API das variáveis de ambiente do Railway (se definidas)
+if (process.env.BINANCE_API_KEY) {
+  serverEngine.state.apiConfig.binanceApiKey = process.env.BINANCE_API_KEY;
+  serverEngine.state.apiConfig.binanceApiSecret = process.env.BINANCE_API_SECRET || '';
+}
+if (process.env.ALPACA_API_KEY) {
+  serverEngine.state.apiConfig.alpacaApiKey = process.env.ALPACA_API_KEY;
+  serverEngine.state.apiConfig.alpacaApiSecret = process.env.ALPACA_API_SECRET || '';
+}
+
+(async function bootstrapCloudEngine() {
+  console.log('[NEXUS RAILWAY 24/7] Conectando ao Firebase Realtime Database:', FIREBASE_RTDB_URL);
+  const existingState = await cloudSync.connectAndLoadInitialState(FIREBASE_RTDB_URL);
+  if (existingState && existingState.dayNumber) {
+    serverEngine.state = {
+      ...serverEngine.state,
+      ...existingState,
+      hiveMind: { ...serverEngine.state.hiveMind, ...(existingState.hiveMind || {}) },
+      activeBots: Array.isArray(existingState.activeBots) && existingState.activeBots.length > 0
+        ? existingState.activeBots
+        : serverEngine.state.activeBots,
+      deadBots: Array.isArray(existingState.deadBots) ? existingState.deadBots : [],
+      dailyLedger: Array.isArray(existingState.dailyLedger) ? existingState.dailyLedger : [],
+      tradeLogs: Array.isArray(existingState.tradeLogs) ? existingState.tradeLogs : []
+    };
+    console.log(
+      `[NEXUS RAILWAY 24/7] Estado restaurado do Firebase -> Dia #${serverEngine.state.dayNumber} | Robôs Vivos: ${serverEngine.state.activeBots.length} | Cofre Total: R$ ${serverEngine.state.masterVaultBalance}`
+    );
+  } else {
+    await cloudSync.syncEcosystemState(serverEngine.state);
+    console.log('[NEXUS RAILWAY 24/7] Estado inicial criado no Firebase.');
+  }
+
+  // Sincroniza o motor 24/7 do Railway com o Firebase a cada 4 segundos
+  setInterval(async () => {
+    if (serverEngine.state.isRunning) {
+      await cloudSync.syncEcosystemState(serverEngine.state);
+    }
+  }, 4000);
+})();
+
+// =============================================================================
+// 2. INTEGRAÇÃO OFICIAL BINANCE API & ALPACA US STOCKS API
+// =============================================================================
 function signBinanceQuery(queryString, apiSecret) {
   return crypto.createHmac('sha256', apiSecret).update(queryString).digest('hex');
 }
 
-/**
- * Transfere o lucro conquistado pelo robô da Carteira Spot (MAIN) para a
- * Carteira Cofre Blindada (FUNDING) dentro da própria conta da Binance!
- */
 function transferProfitToBinanceFundingVault({ apiKey, apiSecret, asset = 'USDT', amount }) {
   return new Promise((resolve, reject) => {
     const timestamp = Date.now();
@@ -63,15 +115,12 @@ function transferProfitToBinanceFundingVault({ apiKey, apiSecret, asset = 'USDT'
   });
 }
 
-/**
- * Envia ordem fracionada para a Bolsa Americana via Alpaca Markets API (NYSE / NASDAQ)
- */
 function executeAlpacaUSStockOrder({ apiKey, apiSecret, isPaper = true, symbol, side, notionalUsd }) {
   return new Promise((resolve, reject) => {
     const hostname = isPaper ? 'paper-api.alpaca.markets' : 'api.alpaca.markets';
     const payload = JSON.stringify({
       symbol,
-      notional: String(Number(notionalUsd).toFixed(2)), // Permite operar frações de ações com R$ 10 (~US$ 2)
+      notional: String(Number(notionalUsd).toFixed(2)),
       side: side.toLowerCase(),
       type: 'market',
       time_in_force: 'day'
@@ -107,6 +156,9 @@ function executeAlpacaUSStockOrder({ apiKey, apiSecret, isPaper = true, symbol, 
   });
 }
 
+// =============================================================================
+// 3. SERVIDOR HTTP PARA O RAILWAY (HEALTHCHECK + API + PAINEL WEB)
+// =============================================================================
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -124,7 +176,20 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // Endpoint para transferir lucro para a Carteira Funding (Cofre) da Binance
+  // Healthcheck e Status do Motor 24/7 no Railway
+  if (req.method === 'GET' && req.url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      status: 'ok',
+      uptimeSeconds: Math.round(process.uptime()),
+      dayNumber: serverEngine.state.dayNumber,
+      activeBots: serverEngine.state.activeBots.length,
+      masterVaultBalance: serverEngine.state.masterVaultBalance,
+      firebaseConnected: cloudSync.isConnected,
+      firebaseUrl: FIREBASE_RTDB_URL
+    }));
+  }
+
   if (req.method === 'POST' && req.url === '/api/binance/vault-transfer') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -142,7 +207,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Endpoint para comprar/vender Ações Americanas Fracionadas (Alpaca Markets)
   if (req.method === 'POST' && req.url === '/api/alpaca/order') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -176,8 +240,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`NEXUS DARWIN CLOUD rodando na porta ${PORT}: http://localhost:${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[NEXUS DARWIN CLOUD] Servidor Railway 24/7 ativo em 0.0.0.0:${PORT}`);
   });
 }
 
