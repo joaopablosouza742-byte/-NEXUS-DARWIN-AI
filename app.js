@@ -62,19 +62,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         dailyLedger: Array.isArray(remoteData.dailyLedger) ? remoteData.dailyLedger : [],
         tradeLogs: Array.isArray(remoteData.tradeLogs) ? remoteData.tradeLogs : []
       };
+
+      // Se o Operador Real estiver rodando no PC, desliga a simulação do navegador
+      if (engine.state.apiConfig && engine.state.apiConfig.mode === 'REAL_LIVE') {
+        if (engine.tickInterval) clearInterval(engine.tickInterval);
+        const engineBadge = document.getElementById('engineStatusBadge');
+        if (engineBadge) {
+          engineBadge.textContent = '● BINANCE REAL AO VIVO (SPOT R$ 10)';
+          engineBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+          engineBadge.style.color = 'var(--accent-emerald)';
+          engineBadge.style.borderColor = 'var(--border-glow-green)';
+        }
+      }
       renderDashboard(engine.state, engine.assets);
-    } else {
-      // Grava o estado inicial imediatamente no Firebase para aparecer na tela do console do usuário
-      await window.FirebaseCloudSync.syncEcosystemState(engine.state);
     }
   }
 
-  // Sincroniza no Firebase Realtime Database a cada 3 segundos continuamente
-  setInterval(() => {
-    if (window.FirebaseCloudSync && engine.state.isRunning) {
+  // Se estiver em modo REAL_LIVE, o navegador apenas ESCUTA o Firebase (não sobrescreve)
+  setInterval(async () => {
+    if (!window.FirebaseCloudSync) return;
+    if (engine.state.apiConfig && engine.state.apiConfig.mode === 'REAL_LIVE') {
+      const freshState = await window.FirebaseCloudSync.connectAndLoadInitialState();
+      if (freshState && freshState.dayNumber) {
+        engine.state = freshState;
+        renderDashboard(engine.state, engine.assets);
+      }
+    } else if (engine.state.isRunning) {
       window.FirebaseCloudSync.syncEcosystemState(engine.state);
     }
-  }, 3000);
+  }, 2500);
 
   renderDashboard(engine.state, engine.assets);
 
