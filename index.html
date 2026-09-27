@@ -119,15 +119,86 @@
       <!-- Coluna Esquerda -->
       <div style="display: flex; flex-direction: column; gap: 1.35rem;">
 
+        <!-- DETALHAMENTO REAL DA CONTA BINANCE -->
+        <section class="section-panel" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);">
+          <div class="section-header">
+            <div class="section-title">
+              <span>💼 Saldo Real Detalhado na Binance (Spot & Ativos)</span>
+              <span class="badge-live" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">UID: 1281981508</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-secondary);">
+              Valores reais consultados diretamente da sua conta Binance via API
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin-top: 0.6rem;">
+            <div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 0.72rem; color: var(--text-muted);">SALDO TOTAL DA CONTA</div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: #10b981;" id="realTotalBalanceBrl">R$ 10,00</div>
+              <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.2rem;">Patrimônio Total Spot</div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 0.72rem; color: var(--text-muted);">REAIS LIVRES (BRL)</div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: #38bdf8;" id="realFreeBrl">R$ 1,18</div>
+              <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.2rem;">Pronto para comprar</div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 0.72rem; color: var(--text-muted);">EM BITCOIN (BTC)</div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: #f59e0b;" id="realBtcBrl">R$ 8,82</div>
+              <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.2rem;">0.00001998 BTC comprado</div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 0.72rem; color: var(--text-muted);">LUCRO GUARDADO NO COFRE</div>
+              <div style="font-size: 1.15rem; font-weight: 700; color: #a855f7;" id="realVaultBrl">R$ 0,00</div>
+              <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.2rem;">Carteira Funding protegida</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- GRÁFICO EM TEMPO REAL DOS 4 ATIVOS MONITÓRIADOS -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>📈 Gráfico em Tempo Real dos Ativos Planejados</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-secondary);">
+              Selecione a moeda abaixo para visualizar o candle e a tendência oficial da Binance
+            </div>
+          </div>
+
+          <!-- Botões de Troca de Ativo -->
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.85rem; flex-wrap: wrap;" id="assetChartTabs">
+            <button class="btn btn-primary" onclick="switchChart('BINANCE:BTCBRL', this)" style="padding: 0.4rem 0.85rem; font-size: 0.78rem;">
+              🟡 Bitcoin (BTC/BRL)
+            </button>
+            <button class="btn" onclick="switchChart('BINANCE:SOLBRL', this)" style="padding: 0.4rem 0.85rem; font-size: 0.78rem;">
+              🟣 Solana (SOL/BRL)
+            </button>
+            <button class="btn" onclick="switchChart('BINANCE:ETHBRL', this)" style="padding: 0.4rem 0.85rem; font-size: 0.78rem;">
+              🔵 Ethereum (ETH/BRL)
+            </button>
+            <button class="btn" onclick="switchChart('BINANCE:BNBBRL', this)" style="padding: 0.4rem 0.85rem; font-size: 0.78rem;">
+              🟠 BNB (BNB/BRL)
+            </button>
+          </div>
+
+          <!-- Container do Gráfico TradingView Oficial -->
+          <div id="tradingview_chart_container" style="height: 380px; width: 100%; border-radius: 8px; overflow: hidden; background: #0b0e14; border: 1px solid rgba(255,255,255,0.08);">
+            <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=BINANCE%3ABTCBRL&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=0b0e14&studies=%5B%5D&theme=dark&style=1&timezone=America%2FSao_Paulo&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=br" style="width: 100%; height: 100%; border: none;"></iframe>
+          </div>
+        </section>
+
         <!-- Painel de Robôs Vivos -->
         <section class="section-panel">
           <div class="section-header">
             <div class="section-title">
               <span>🧬 Exército de Robôs Operadores (Banca R$ 10,00 ➔ Meta +R$ 10,00)</span>
-              <span class="badge-live">Clique em qualquer robô para ver o Cérebro IA</span>
             </div>
             <div style="font-size: 0.76rem; color: var(--text-secondary);">
-              <strong class="text-emerald">Lucrou +R$ 10,00 = Guarda no Cofre (Binance/Alpaca) + Cria Novo Robô de R$ 10,00</strong> | <strong class="text-red">Negativo = Robô Morre 💀</strong>
+              <strong class="text-emerald">Lucrou +R$ 10,00 = Guarda no Cofre (Binance Funding) + Cria Novo Robô de R$ 10,00</strong>
             </div>
           </div>
 

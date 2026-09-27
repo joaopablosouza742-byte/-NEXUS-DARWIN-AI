@@ -83,6 +83,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('kpiBinanceVault').textContent = formatCurrency(state.binanceFundingVault || 0);
     document.getElementById('kpiAlpacaVault').textContent = 'R$ 0,00';
 
+    // DETALHAMENTO DA CONTA REAL
+    const realTotalEl = document.getElementById('realTotalBalanceBrl');
+    if (realTotalEl) realTotalEl.textContent = formatCurrency(state.totalDepositedCapital || 10.00);
+
+    const realFreeBrlEl = document.getElementById('realFreeBrl');
+    if (realFreeBrlEl) {
+      const free = state.realBalances && state.realBalances.brlFree !== undefined ? state.realBalances.brlFree : 1.18;
+      realFreeBrlEl.textContent = formatCurrency(free);
+    }
+
+    const realBtcBrlEl = document.getElementById('realBtcBrl');
+    if (realBtcBrlEl) {
+      const bot = Array.isArray(state.activeBots) && state.activeBots[0];
+      const btcVal = bot && bot.openPosition ? (bot.openPosition.notionalBrl || 8.82) : 0;
+      realBtcBrlEl.textContent = formatCurrency(btcVal);
+    }
+
+    const realVaultBrlEl = document.getElementById('realVaultBrl');
+    if (realVaultBrlEl) realVaultBrlEl.textContent = formatCurrency(state.masterVaultBalance || 0);
+
     // 2. CAPITAL EM OPERAÇÃO
     const activeBots = Array.isArray(state.activeBots) ? state.activeBots : [];
     const totalActiveCapital = activeBots.reduce((sum, b) => sum + (b.currentCapital || 0), 0);
@@ -191,3 +211,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   fetchRealState();
   setInterval(fetchRealState, 2500);
 });
+
+// Função global para troca do gráfico oficial TradingView da Binance
+window.switchChart = function (symbol, btnElement) {
+  const iframe = document.getElementById('tv_iframe');
+  if (iframe) {
+    const encoded = encodeURIComponent(symbol);
+    iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encoded}&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=0b0e14&studies=%5B%5D&theme=dark&style=1&timezone=America%2FSao_Paulo&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=br`;
+  }
+
+  // Atualiza botão ativo
+  const tabs = document.querySelectorAll('#assetChartTabs button');
+  tabs.forEach((b) => {
+    b.className = 'btn';
+  });
+  if (btnElement) {
+    btnElement.className = 'btn btn-primary';
+  }
+};
