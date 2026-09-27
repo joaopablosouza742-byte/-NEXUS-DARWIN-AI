@@ -1,0 +1,358 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model - NEXUS DARWIN AI Autonomous Trading Platform
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// 1. Collection: /ecosystems/{userId}
+//    Document ID: {userId} (matches Firebase Auth UID)
+//    Description: Stores the authenticated user's autonomous swarm ecosystem state.
+//    Required Fields:
+//      - initialSeedCapital: number (required, >= 10 && <= 1000000000) - Initial capital per founder bot
+//      - masterVaultBalance: number (required, >= 0 && <= 100000000000) - Locked profit vault balance
+//    Optional Fields:
+//      - uid: string (optional, immutable, must match userId) - Owner UID
+//      - dayNumber: number (optional, >= 1 && <= 1000000) - Current evolutionary day cycle
+//      - dayProgressPct: number (optional, >= 0 && <= 100) - Intraday cycle progress percentage
+//      - cycleSpeedSec: number (optional, >= 1 && <= 864000) - Cycle duration in seconds
+//      - isRunning: bool (optional) - Whether autonomous engine is running
+//      - replicationRule: string (optional, enum: ['FULL_CLONE_FROM_PROFIT', 'SPLIT_50_50'])
+//      - autoRespawnIfAllDead: bool (optional) - Phoenix respawn flag
+//      - allowedMarkets: list (optional, size <= 10) - Allowed trading markets
+//      - binanceFundingVault: number (optional, >= 0 && <= 100000000000) - Swept crypto profits in Binance Funding Vault
+//      - alpacaCashVault: number (optional, >= 0 && <= 100000000000) - Swept US stock profits in Alpaca Cash Vault
+//      - replicationReserveBalance: number (optional, >= 0 && <= 100000000000) - Reserve balance for bot cloning
+//      - totalDepositedCapital: number (optional, >= 0 && <= 100000000000) - Total initial capital deposited
+//      - totalHistoricalProfitSaved: number (optional, >= 0 && <= 100000000000) - Cumulative profit saved across all days
+//      - hiveMind: map (optional, size <= 25) - Collective neural weights and telemetry
+//      - activeBots: list (optional, size <= 100) - Currently alive trading bots and their neural brains
+//      - deadBots: list (optional, size <= 100) - Eliminated bots record (natural selection graveyard)
+//      - dailyLedger: list (optional, size <= 200) - End-of-day judgment history
+//      - tradeLogs: list (optional, size <= 200) - Recent real-time trade feed
+//      - createdAt: timestamp or string (optional, immutable on update) - Creation timestamp
+//      - updatedAt: timestamp or string or number (optional) - Last state sync timestamp
+//
+// 2. Subcollection: /ecosystems/{userId}/trades/{tradeId}
+//    Document ID: {tradeId}
+//    Description: Immutable audit log of individual trade executions on Binance and US Stock Market (Alpaca).
+//    Access: Owner can read and create only; updates and deletes are strictly forbidden.
+//    Required Fields:
+//      - symbol: string (required, 1..32 chars) - Traded asset symbol (e.g., 'BTC/USDT', 'NVDA')
+//      - side: string (required, enum: ['LONG', 'SHORT', 'BUY', 'SELL']) - Order direction
+//      - pnl: number (required, >= -1000000000 && <= 1000000000) - Realized profit or loss
+//    Optional Fields:
+//      - id, uid, botId, botName, market, exchange, orderType, orderId, status, timestamp: string (<= 128 chars)
+//      - generation, botIQ, quantity, allocatedCapital, entryPrice, exitPrice, pnlPct, confidence, day: number
+//      - isWin: bool
+//      - createdAt: timestamp or string or number
+//
+// 3. Subcollection: /ecosystems/{userId}/vault_transfers/{transferId}
+//    Document ID: {transferId}
+//    Description: Immutable audit log of daily profit sweeps to the Binance Funding Wallet / Alpaca Vault.
+//    Access: Owner can read and create only; updates and deletes are strictly forbidden.
+//    Required Fields:
+//      - amount: number (required, > 0 && <= 100000000000) - Profit swept to the vault
+//      - destinationVault: string (required, 1..128 chars) - Target vault identifier
+//    Optional Fields:
+//      - id, uid, currency, sourceAccount, exchange, market, txId, status, note, timestamp: string (<= 256 chars)
+//      - day, profitSaved, vaultBalanceAfter, botsSurvived, botsSpawned, botsDied: number (>= 0)
+//      - createdAt: timestamp or string or number
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user owns the resource path
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Verify UID field (if present) matches the authenticated user on create
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) ||
+        (request.resource.data.uid is string && request.resource.data.uid == request.auth.uid);
+    }
+
+    // Ensure UID field is not modified on update
+    function uidNotModified() {
+      return !('uid' in request.resource.data) ||
+        (!('uid' in resource.data) && request.resource.data.uid == request.auth.uid) ||
+        (request.resource.data.uid == resource.data.uid);
+    }
+
+    // Validate required fields exist on incoming document
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the document contains only explicitly allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that immutable fields have not been modified during an update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate optional string field length bounds
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) ||
+        (data[field] is string && data[field].size() >= minLen && data[field].size() <= maxLen);
+    }
+
+    // Validate optional number field range bounds
+    function isValidOptionalNumber(data, field, minVal, maxVal) {
+      return !(field in data) ||
+        (data[field] is number && data[field] >= minVal && data[field] <= maxVal);
+    }
+
+    // Validate optional boolean field
+    function isValidOptionalBool(data, field) {
+      return !(field in data) || (data[field] is bool);
+    }
+
+    // Validate optional list field with maximum element limit to prevent DoS
+    function isValidOptionalList(data, field, maxSize) {
+      return !(field in data) || (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    // Validate optional map field with maximum key limit to prevent DoS
+    function isValidOptionalMap(data, field, maxKeys) {
+      return !(field in data) || (data[field] is map && data[field].size() <= maxKeys);
+    }
+
+    // Validate optional timestamp/date field (supports Firestore Timestamp, ISO string, or epoch ms)
+    function isValidOptionalTimestamp(data, field) {
+      return !(field in data) ||
+        data[field] is timestamp ||
+        (data[field] is string && data[field].size() >= 1 && data[field].size() <= 64) ||
+        (data[field] is number && data[field] >= 0 && data[field] <= 9999999999999);
+    }
+
+    // ===============================================================
+    // Domain Validators (Called on BOTH create and update)
+    // ===============================================================
+
+    // Validate `/ecosystems/{userId}` document
+    function isValidEcosystem(data) {
+      let allowedFields = [
+        'uid',
+        'dayNumber',
+        'dayProgressPct',
+        'cycleSpeedSec',
+        'isRunning',
+        'initialSeedCapital',
+        'replicationRule',
+        'autoRespawnIfAllDead',
+        'allowedMarkets',
+        'masterVaultBalance',
+        'binanceFundingVault',
+        'alpacaCashVault',
+        'replicationReserveBalance',
+        'totalDepositedCapital',
+        'totalHistoricalProfitSaved',
+        'hiveMind',
+        'activeBots',
+        'deadBots',
+        'dailyLedger',
+        'tradeLogs',
+        'createdAt',
+        'updatedAt'
+      ];
+
+      return hasOnlyAllowedFields(allowedFields) &&
+        hasRequiredFields(['initialSeedCapital', 'masterVaultBalance']) &&
+        // Mandatory financial invariants
+        data.initialSeedCapital is number &&
+        data.initialSeedCapital >= 10 &&
+        data.initialSeedCapital <= 1000000000 &&
+        data.masterVaultBalance is number &&
+        data.masterVaultBalance >= 0 &&
+        data.masterVaultBalance <= 100000000000 &&
+        // Optional numeric state fields
+        isValidOptionalNumber(data, 'dayNumber', 1, 1000000) &&
+        isValidOptionalNumber(data, 'dayProgressPct', 0, 100) &&
+        isValidOptionalNumber(data, 'cycleSpeedSec', 1, 864000) &&
+        isValidOptionalNumber(data, 'binanceFundingVault', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'alpacaCashVault', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'replicationReserveBalance', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'totalDepositedCapital', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'totalHistoricalProfitSaved', 0, 100000000000) &&
+        // Optional boolean & enum fields
+        isValidOptionalBool(data, 'isRunning') &&
+        isValidOptionalBool(data, 'autoRespawnIfAllDead') &&
+        (!('replicationRule' in data) ||
+          (data.replicationRule is string &&
+           data.replicationRule in ['FULL_CLONE_FROM_PROFIT', 'SPLIT_50_50'])) &&
+        // Optional bounded lists & maps (DoS protection)
+        isValidOptionalList(data, 'allowedMarkets', 10) &&
+        isValidOptionalMap(data, 'hiveMind', 25) &&
+        isValidOptionalList(data, 'activeBots', 100) &&
+        isValidOptionalList(data, 'deadBots', 100) &&
+        isValidOptionalList(data, 'dailyLedger', 200) &&
+        isValidOptionalList(data, 'tradeLogs', 200) &&
+        // Optional metadata & timestamps
+        isValidOptionalString(data, 'uid', 1, 128) &&
+        isValidOptionalTimestamp(data, 'createdAt') &&
+        isValidOptionalTimestamp(data, 'updatedAt');
+    }
+
+    // Validate `/ecosystems/{userId}/trades/{tradeId}` document
+    function isValidTrade(data) {
+      let allowedFields = [
+        'id',
+        'uid',
+        'botId',
+        'botName',
+        'generation',
+        'botIQ',
+        'symbol',
+        'market',
+        'exchange',
+        'side',
+        'orderType',
+        'quantity',
+        'allocatedCapital',
+        'entryPrice',
+        'exitPrice',
+        'pnl',
+        'pnlPct',
+        'isWin',
+        'confidence',
+        'orderId',
+        'status',
+        'day',
+        'timestamp',
+        'createdAt'
+      ];
+
+      return hasOnlyAllowedFields(allowedFields) &&
+        hasRequiredFields(['symbol', 'side', 'pnl']) &&
+        data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 32 &&
+        data.side is string && data.side in ['LONG', 'SHORT', 'BUY', 'SELL'] &&
+        data.pnl is number && data.pnl >= -1000000000 && data.pnl <= 1000000000 &&
+        isValidOptionalString(data, 'id', 1, 128) &&
+        isValidOptionalString(data, 'uid', 1, 128) &&
+        isValidOptionalString(data, 'botId', 1, 128) &&
+        isValidOptionalString(data, 'botName', 1, 128) &&
+        isValidOptionalString(data, 'market', 1, 64) &&
+        isValidOptionalString(data, 'exchange', 1, 64) &&
+        isValidOptionalString(data, 'orderType', 1, 32) &&
+        isValidOptionalString(data, 'orderId', 1, 128) &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalString(data, 'timestamp', 1, 64) &&
+        isValidOptionalNumber(data, 'generation', 1, 1000000) &&
+        isValidOptionalNumber(data, 'botIQ', 1, 10000) &&
+        isValidOptionalNumber(data, 'quantity', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'allocatedCapital', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'entryPrice', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'exitPrice', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'pnlPct', -100000, 1000000) &&
+        isValidOptionalNumber(data, 'confidence', 0, 100) &&
+        isValidOptionalNumber(data, 'day', 1, 1000000) &&
+        isValidOptionalBool(data, 'isWin') &&
+        isValidOptionalTimestamp(data, 'createdAt');
+    }
+
+    // Validate `/ecosystems/{userId}/vault_transfers/{transferId}` document
+    function isValidVaultTransfer(data) {
+      let allowedFields = [
+        'id',
+        'uid',
+        'day',
+        'amount',
+        'profitSaved',
+        'currency',
+        'sourceAccount',
+        'destinationVault',
+        'exchange',
+        'market',
+        'vaultBalanceAfter',
+        'botsSurvived',
+        'botsSpawned',
+        'botsDied',
+        'txId',
+        'status',
+        'note',
+        'timestamp',
+        'createdAt'
+      ];
+
+      return hasOnlyAllowedFields(allowedFields) &&
+        (('amount' in data && data.amount is number && data.amount > 0 && data.amount <= 100000000000) ||
+         ('profitSaved' in data && data.profitSaved is number && data.profitSaved > 0 && data.profitSaved <= 100000000000)) &&
+        isValidOptionalNumber(data, 'amount', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'profitSaved', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'day', 1, 1000000) &&
+        isValidOptionalNumber(data, 'vaultBalanceAfter', 0, 100000000000) &&
+        isValidOptionalNumber(data, 'botsSurvived', 0, 10000) &&
+        isValidOptionalNumber(data, 'botsSpawned', 0, 10000) &&
+        isValidOptionalNumber(data, 'botsDied', 0, 10000) &&
+        isValidOptionalString(data, 'id', 1, 128) &&
+        isValidOptionalString(data, 'uid', 1, 128) &&
+        isValidOptionalString(data, 'currency', 1, 16) &&
+        isValidOptionalString(data, 'sourceAccount', 1, 128) &&
+        isValidOptionalString(data, 'destinationVault', 1, 128) &&
+        isValidOptionalString(data, 'exchange', 1, 64) &&
+        isValidOptionalString(data, 'market', 1, 64) &&
+        isValidOptionalString(data, 'txId', 1, 128) &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalString(data, 'note', 0, 256) &&
+        isValidOptionalString(data, 'timestamp', 1, 64) &&
+        isValidOptionalTimestamp(data, 'createdAt');
+    }
+
+    // ===============================================================
+    // Collection Security Rules
+    // ===============================================================
+
+    // 1. User Autonomous Swarm Ecosystem State
+    match /ecosystems/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+        uidUnchanged() &&
+        isValidEcosystem(request.resource.data);
+      allow update: if isOwner(userId) &&
+        uidNotModified() &&
+        areImmutableFieldsUnchanged(['createdAt']) &&
+        isValidEcosystem(request.resource.data);
+      allow delete: if false;
+
+      // 2. Individual Trade Executions (Binance & Alpaca) - Immutable Audit Trail
+      match /trades/{tradeId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          uidUnchanged() &&
+          isValidTrade(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      // 3. Daily Profit Sweeps to Binance Funding Wallet / Alpaca Vault - Immutable Audit Trail
+      match /vault_transfers/{transferId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          uidUnchanged() &&
+          isValidVaultTransfer(request.resource.data);
+        allow update, delete: if false;
+      }
+    }
+
+    // 4. Default Deny All Other Paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS DARWIN CLOUD — Robôs R$ 10 -> +R$ 10 (Firebase + Binance + Bolsa EUA)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Barra de Topo -->
+  <header class="top-navbar">
+    <div class="brand-area">
+      <div class="brand-logo">NX</div>
+      <div class="brand-title">
+        <h1>
+          NEXUS DARWIN CLOUD
+          <span class="badge-live" id="engineStatusBadge">● OPERANDO AUTÔNOMO</span>
+          <span class="badge-live" id="firebaseStatusBadge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
+            ☁️ Firebase: Clique em Configurar
+          </span>
+        </h1>
+        <div class="brand-subtitle">
+          Regra <strong>R$ 10,00 ➔ Lucra +R$ 10,00 ➔ Multiplica Robô</strong> • Binance Cripto & Bolsa Americana (Alpaca) • Banco Firebase Firestore
+        </div>
+      </div>
+    </div>
+
+    <!-- Relógio do Ciclo Diário -->
+    <div class="day-cycle-widget">
+      <div class="day-label" id="currentDayLabel">DIA #1</div>
+      <div class="day-progress-wrapper">
+        <div class="day-progress-header">
+          <span>Ciclo Diário (Meta: +R$ 10/robô)</span>
+          <span id="dayProgressText">0%</span>
+        </div>
+        <div class="day-progress-bar">
+          <div class="day-progress-fill" id="dayProgressFill" style="width: 0%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ações Rápidas -->
+    <div class="controls-group">
+      <select id="speedSelector" class="select-speed" aria-label="Velocidade do Ciclo Diário">
+        <option value="15">⚡ Ultra-Turbo (1 Dia = 15s)</option>
+        <option value="45" selected>🚀 Turbo (1 Dia = 45s)</option>
+        <option value="180">⏱️ Rápido (1 Dia = 3 min)</option>
+        <option value="86400">🕒 Tempo Real (24 Horas)</option>
+      </select>
+
+      <button class="btn btn-cyan" id="btnForceEndOfDay" title="Simular o fechamento do dia: cada robô positivo guarda +R$ 10 no Cofre e cria +1 robô de R$ 10">
+        ⏭️ Bater Meta +R$ 10 & Multiplicar Agora
+      </button>
+
+      <button class="btn btn-purple" id="btnInjectBot" title="Injetar +1 robô com R$ 10,00">
+        ➕ +1 Robô (R$ 10)
+      </button>
+
+      <button class="btn" id="btnToggleEngine">
+        ⏸️ Pausar
+      </button>
+
+      <button class="btn btn-primary" id="btnOpenConfig">
+        🔥 Conectar Firebase & Corretoras
+      </button>
+    </div>
+  </header>
+
+  <!-- Faixa de Cotações Ao Vivo (Binance Cripto + Bolsa Americana Wall Street) -->
+  <div class="market-ticker-strip" id="marketTickerStrip">
+    <!-- Preenchido dinamicamente pelo app.js -->
+  </div>
+
+  <!-- Conteúdo Principal -->
+  <main class="dashboard-container">
+
+    <!-- 4 KPIs Mestres (Onde ficam os fundos guardados + Enxame R$ 10) -->
+    <section class="kpi-grid">
+      <!-- 1. Carteira Cofre Blindada (Binance Funding + Alpaca EUA) -->
+      <div class="kpi-card vault-highlight">
+        <div class="kpi-header">
+          <span>🔒 Cofre Total Salvo (Lucro Intocável)</span>
+          <span class="text-emerald">100% PROTEGIDO</span>
+        </div>
+        <div class="kpi-value text-emerald" id="kpiVaultBalance">R$ 0,00</div>
+        <div class="kpi-sub" style="display: flex; justify-content: space-between; font-size: 0.74rem; margin-top: 0.25rem;">
+          <span>🟡 Binance Funding: <strong id="kpiBinanceVault" class="text-amber">R$ 0,00</strong></span>
+          <span>🔵 Bolsa EUA (Alpaca): <strong id="kpiAlpacaVault" class="text-cyan">R$ 0,00</strong></span>
+        </div>
+      </div>
+
+      <!-- 2. Capital em Operação nos Robôs (R$ 10 por robô) -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>⚡ Capital Operando Agora (R$ 10 / Robô)</span>
+          <span class="text-cyan" id="kpiActiveDailyPnL">+R$ 0,00 no ciclo</span>
+        </div>
+        <div class="kpi-value" id="kpiActiveCapital">R$ 10,00</div>
+        <div class="kpi-sub">
+          <span>Banca por Robô: <strong id="kpiBaseSeed">R$ 10,00</strong> • Meta p/ Clonar: <strong class="text-emerald" id="kpiTargetProfit">+R$ 10,00</strong></span>
+        </div>
+      </div>
+
+      <!-- 3. Multiplicação do Exército de Robôs -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span>🤖 Multiplicação de Robôs (10 ➔ +10)</span>
+          <span class="text-purple" id="kpiMaxGeneration">Geração Máx: Gen #1</span>
+        </div>
+        <div class="kpi-value text-cyan" id="kpiActiveBotsCount">1 Robô Vivo</div>
+        <div class="kpi-sub">
+          <span id="kpiDeadBotsCount">0 robôs eliminados (Risco máx R$ 10/robô)</span>
+        </div>
+      </div>
+
+      <!-- 4. Inteligência Neural & Aprendizado -->
+      <div class="kpi-card hive-highlight">
+        <div class="kpi-header">
+          <span>🧠 Inteligência da Colmeia (IA Evolutiva)</span>
+          <span class="text-purple" id="kpiWinRate">Win Rate: --%</span>
+        </div>
+        <div class="kpi-value text-purple" id="kpiCollectiveIQ">QI 108</div>
+        <div class="kpi-sub">
+          <span id="kpiLessonsCount">0 ajustes neurais • Sincronizado c/ Cloud Firestore</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Grid Principal -->
+    <div class="main-workspace-grid">
+
+      <!-- Coluna Esquerda -->
+      <div style="display: flex; flex-direction: column; gap: 1.35rem;">
+
+        <!-- Painel de Robôs Vivos -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>🧬 Exército de Robôs Operadores (Banca R$ 10,00 ➔ Meta +R$ 10,00)</span>
+              <span class="badge-live">Clique em qualquer robô para ver o Cérebro IA</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-secondary);">
+              <strong class="text-emerald">Lucrou +R$ 10,00 = Guarda no Cofre (Binance/Alpaca) + Cria Novo Robô de R$ 10,00</strong> | <strong class="text-red">Negativo = Robô Morre 💀</strong>
+            </div>
+          </div>
+
+          <div class="bots-swarm-grid" id="activeBotsGrid">
+            <!-- Cards dos robôs renderizados em tempo real -->
+          </div>
+        </section>
+
+        <!-- Livro Diário da Carteira Cofre (Binance Funding + Bolsa Americana) -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>🏦 Extrato dos Cofres (Binance Funding Wallet & Bolsa Americana Alpaca)</span>
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-secondary);">
+              Onde ficam guardados seus lucros diários fora de risco operacional
+            </div>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="ledger-table">
+              <thead>
+                <tr>
+                  <th>Dia</th>
+                  <th>Horário</th>
+                  <th>Lucro Guardado</th>
+                  <th>🟡 Cofre Binance (Funding)</th>
+                  <th>🔵 Cofre Bolsa EUA (Alpaca)</th>
+                  <th>Total Blindado</th>
+                  <th>Novos Robôs (+R$ 10)</th>
+                  <th>Mortos (💀)</th>
+                </tr>
+              </thead>
+              <tbody id="dailyLedgerBody">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.2rem;">
+                    Operando Ciclo #1 (R$ 10,00 buscando +R$ 10,00)... Clique em "⏭️ Bater Meta +R$ 10 & Multiplicar Agora" para ver a multiplicação imediata!
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Coluna Direita: Memória da Colmeia, Feed de Trades e Cemitério -->
+      <aside style="display: flex; flex-direction: column; gap: 1.35rem;">
+
+        <!-- Pesos Globais da Rede Neural da Colmeia -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>🧠 DNA Neural Mestre (Firebase IA)</span>
+            </div>
+            <span class="iq-badge" id="hiveRankBadge">Aprendiz Autônomo</span>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.8rem;">
+            A cada trade na Binance ou NYSE/NASDAQ, os robôs aprendem por reforço e passam um cérebro mais especialista para os novos filhos de R$ 10,00:
+          </p>
+          <div id="hiveWeightsContainer" style="display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 1rem;">
+          </div>
+          <div style="border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
+            <div style="font-size: 0.74rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 0.4rem;">
+              LOG DE MULTIPLICAÇÃO & APRENDIZADO:
+            </div>
+            <div id="hiveInsightsList" style="font-size: 0.74rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.35rem;">
+            </div>
+          </div>
+        </section>
+
+        <!-- Feed de Compras e Vendas Ao Vivo -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>⚡ Ordens Executadas (Binance & Wall Street)</span>
+            </div>
+          </div>
+          <div class="feed-list" id="liveTradesFeed">
+          </div>
+        </section>
+
+        <!-- Cemitério de Robôs Eliminados -->
+        <section class="section-panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span>💀 Robôs Eliminados (Saldo Negativo)</span>
+            </div>
+          </div>
+          <div class="feed-list" id="deadBotsFeed" style="max-height: 240px;">
+          </div>
+        </section>
+
+      </aside>
+    </div>
+
+  </main>
+
+  <!-- MODAL 1: CONFIGURAÇÃO FIREBASE, BINANCE, BOLSA AMERICANA E BANCA R$ 10 -->
+  <dialog id="configDialog" closedby="any" aria-labelledby="configDialogTitle">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h2 id="configDialogTitle" style="font-size: 1.08rem;">🔥 Configurar Firebase Firestore, Binance, Bolsa EUA & Regra R$ 10</h2>
+        <button type="button" class="btn" id="btnCloseConfigDialog">✕</button>
+      </div>
+
+      <form id="configForm">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+          <div class="form-group">
+            <label for="inputSeedCapital">Saldo Inicial de Cada Robô (R$)</label>
+            <input type="number" id="inputSeedCapital" class="form-control" min="1" step="1" value="10" required />
+          </div>
+          <div class="form-group">
+            <label for="inputTargetProfit">Meta de Lucro p/ Multiplicar Robô (+R$)</label>
+            <input type="number" id="inputTargetProfit" class="form-control" min="1" step="1" value="10" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="inputFirebaseConfig">🔥 Firebase Config JSON (Cole o objeto firebaseConfig do seu Console Firebase)</label>
+          <textarea id="inputFirebaseConfig" class="form-control" rows="3" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "seu-projeto", "appId": "..."}'></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+          <div class="form-group">
+            <label for="inputBinanceKey">🟡 Binance API Key (Spot + Transferência p/ Funding Cofre)</label>
+            <input type="password" id="inputBinanceKey" class="form-control" placeholder="Binance API Key..." />
+          </div>
+          <div class="form-group">
+            <label for="inputBinanceSecret">🟡 Binance API Secret</label>
+            <input type="password" id="inputBinanceSecret" class="form-control" placeholder="Binance Secret Key..." />
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+          <div class="form-group">
+            <label for="inputAlpacaKey">🔵 Bolsa Americana (Alpaca Markets API Key)</label>
+            <input type="password" id="inputAlpacaKey" class="form-control" placeholder="PK..." />
+          </div>
+          <div class="form-group">
+            <label for="inputAlpacaSecret">🔵 Alpaca API Secret (NYSE / NASDAQ)</label>
+            <input type="password" id="inputAlpacaSecret" class="form-control" placeholder="Alpaca Secret..." />
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; gap: 0.75rem; margin-top: 1.15rem; flex-wrap: wrap;">
+          <button type="button" class="btn" id="btnResetEcosystem" style="border-color: var(--accent-red); color: var(--accent-red);">
+            🔄 Reiniciar no Dia #1 (1 Robô com R$ 10,00)
+          </button>
+          <button type="submit" class="btn btn-primary">
+            ☁️ Salvar e Sincronizar com Firebase
+          </button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 2: INSPEÇÃO DO CÉREBRO NEURAL DO ROBÔ -->
+  <dialog id="botBrainDialog" closedby="any" aria-labelledby="botBrainDialogTitle">
+    <div class="dialog-inner">
+      <div class="dialog-header">
+        <h2 id="botBrainDialogTitle" style="font-size: 1.1rem;">🧬 Inspeção Neural do Robô</h2>
+        <button type="button" class="btn" id="btnCloseBrainDialog">✕</button>
+      </div>
+      <div id="botBrainDialogContent">
+      </div>
+    </div>
+  </dialog>
+
+  <script src="engine/firebase_cloud_sync.js"></script>
+  <script src="engine/ai_swarm_engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
