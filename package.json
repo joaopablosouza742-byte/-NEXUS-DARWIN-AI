@@ -1,8 +1,7 @@
 {
   "name": "nexus-darwin-cloud-ai",
   "version": "2.0.0",
-  "description": "Operador Autonomo Auto-Replicante R$ 10 -> +R$ 10 (Firebase Firestore + Binance Cripto + Bolsa Americana Alpaca)",
-  "main": "server.js",
+  "description": "Operador Autonomo Auto-Replicante R$ 10 -> +R$ 10 (Firebase + Binance Cripto + Bolsa Americana Alpaca)",
   "scripts": {
     "start": "node server.js",
     "deploy:firebase": "npx -y firebase-tools@latest deploy"
